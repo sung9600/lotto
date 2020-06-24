@@ -1,101 +1,72 @@
 package edu.skku2.map.lotto;
 
-import android.content.pm.PackageManager;
-import android.graphics.Camera;
+import android.graphics.SurfaceTexture;
+import android.hardware.camera2.CameraDevice;
+import android.hardware.camera2.CameraManager;
 import android.os.Bundle;
-import android.widget.ImageView;
-import android.widget.Toast;
+import android.util.Size;
+import android.view.Surface;
+import android.view.TextureView;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.camera.core.CameraSelector;
-import androidx.camera.core.ImageAnalysis;
-import androidx.camera.core.ImageCapture;
-import androidx.camera.core.Preview;
-import androidx.camera.extensions.HdrImageCaptureExtender;
-import androidx.camera.lifecycle.ProcessCameraProvider;
-import androidx.camera.view.PreviewView;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-import androidx.lifecycle.LifecycleOwner;
 
-import com.google.common.util.concurrent.ListenableFuture;
+public class MainActivity extends AppCompatActivity implements Camera2APIs.Camera2Interface,TextureView.SurfaceTextureListener {
+    private TextureView mTextureView;
+    private Camera2APIs camera2API2;
 
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-
-public class MainActivity extends AppCompatActivity {
-    private Executor executor= Executors.newSingleThreadExecutor();
-    private int REQUEST_CODE_PERMISSIONS =1001;
-    private final String[] REQUIRED_PERMISSIONS= new String[]{
-            "android.permission.CAMERA","android.permission.WRITE_EXTERNAL_STORAGE"
-    };
-    PreviewView mPreviewView;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        mPreviewView=findViewById(R.id.previewView);
-        if(allPermissionsGranted()){
-            startCamera();
-        }
-        else{
-            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS);
-        }
+        mTextureView= findViewById(R.id.textureView);
+        mTextureView.setSurfaceTextureListener(this);
+        camera2API2=new Camera2APIs(this);
     }
-    private boolean allPermissionsGranted(){
 
-        for(String permission : REQUIRED_PERMISSIONS){
-            if(ContextCompat.checkSelfPermission(getApplicationContext(), permission) != PackageManager.PERMISSION_GRANTED){
-                return false;
-            }
-        }
+    @Override
+    public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+        openCamera();
+    }
+
+    @Override
+    public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+
+    }
+
+    @Override
+    public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
         return true;
     }
+
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+    public void onSurfaceTextureUpdated(SurfaceTexture surface) {
 
-        if(requestCode == REQUEST_CODE_PERMISSIONS){
-            if(allPermissionsGranted()){
-                startCamera();
-            } else{
-                Toast.makeText(this, "Permissions not granted by the user.", Toast.LENGTH_SHORT).show();
-                this.finish();
-            }
+    }
+
+    @Override
+    public void onCameraDeviceOpened(CameraDevice cameraDevice, Size cameraSize) {
+        SurfaceTexture texture = mTextureView.getSurfaceTexture();
+        texture.setDefaultBufferSize(cameraSize.getWidth(), cameraSize.getHeight());
+        Surface surface = new Surface(texture);
+
+        camera2API2.CaptureSession_4(cameraDevice, surface);
+        camera2API2.CaptureRequest_5(cameraDevice, surface);
+    }
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        if (mTextureView.isAvailable()) {
+            openCamera();
+        } else {
+            mTextureView.setSurfaceTextureListener(this);
         }
     }
-    private void startCamera(){
-        final ListenableFuture<ProcessCameraProvider>
-                cameraProviderListenableFuture=ProcessCameraProvider.getInstance(this);
-        cameraProviderListenableFuture.addListener(new Runnable() {
-            @Override
-            public void run() {
-                try{
-                    ProcessCameraProvider cameraProvider=cameraProviderListenableFuture.get();
-                    bindPreview(cameraProvider);
-                }catch (ExecutionException|InterruptedException ignored){
-
-                }
-            }
-        },ContextCompat.getMainExecutor(this));
+    private void openCamera() {
+        CameraManager cameraManager = camera2API2.CameraManager_1(this);
+        String cameraId = camera2API2.CameraCharacteristics_2(cameraManager);
+        camera2API2.CameraDevice_3(cameraManager, cameraId);
     }
-    void bindPreview(@NonNull ProcessCameraProvider cameraProvider){
-        Preview preview = new Preview.Builder().build();
-        CameraSelector cameraSelector=new CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_BACK).build();
-        ImageCapture.Builder builder=new ImageCapture.Builder();
-        ImageAnalysis imageAnalysis=new ImageAnalysis.Builder().build();
-        HdrImageCaptureExtender hdrImageCaptureExtender=HdrImageCaptureExtender.create(builder);
-
-        if(hdrImageCaptureExtender.isExtensionAvailable(cameraSelector)){
-            hdrImageCaptureExtender.enableExtension(cameraSelector);
-
-        }
-        final ImageCapture imageCapture=builder.setTargetRotation(this.getWindowManager().getDefaultDisplay().getRotation()).build();
-        preview.setSurfaceProvider(mPreviewView.createSurfaceProvider());
-        Camera camera= (Camera) cameraProvider.bindToLifecycle(this,cameraSelector,preview,imageAnalysis,imageCapture);
-    }
-
 }
 
 
